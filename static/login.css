@@ -1,0 +1,67 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'Arial', sans-serif;
+    background-color: rgb(34, 56, 71);
+    color: black;
+    display: block;
+    justify-content:center;
+    align-items: center;;
+  }
+.container{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-top: auto;
+    padding: 120px;
+}
+.information{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-top: auto;
+    padding: 20px;
+    margin: 10px;
+
+}
+.information input {
+    margin: 8px;
+}
+.Connexion{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-top: auto;
+    padding: 12px;
+    margin: -16px;
+}
+.Connexion div{
+    margin: 5px;
+}
+img{
+    width: 30%;
+    height: 10%;
+    margin: -13px;
+}
+button{
+    background-color: #4CAF50;
+    color: white;
+    padding: 4px 20px;
+    margin: 18px 0;
+    width: 60%;
+    height: 40px;
+    border-radius: 12px;
+    font-size: 20px;
+    justify-content: center;
+    align-items: center;
+}
+.logoDef{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
