@@ -58,7 +58,7 @@ def signup():
         data_json = request.get_json()
         username = data_json['username']
         username_found = execute_query('SELECT COUNT(*) FROM users WHERE username = ?', (username,), fetchone=True)
-        if username_found:
+        if username_found == (0,):
             password = data_json['password']
             password = bcrypt.generate_password_hash(password).decode()
             token = str(uuid.uuid4())
@@ -90,6 +90,7 @@ def login():
 @socket.on('connect')
 def handle_connect(auth):
     if auth:
+        # Récupération des informations utilisateur grace au token recu dans auth.
         login_query = 'SELECT id, username, password, token FROM users WHERE token = ?'
         user_data = execute_query(login_query, parameters=(auth,), fetchone=True)
         if user_data:
@@ -99,11 +100,45 @@ def handle_connect(auth):
                 clients_socket[user_data[1]]["socket_id_list"] = []
             if not user_data[1] in users_connected:
                 users_connected.append(user_data[1])
+            
+            # Ajout de l'utilisateur à la liste des clients connectés.
             clients_socket[user_data[1]]["socket_id_list"].append(request.sid)
-            socket.emit("connection",
+
+            # Envoi des informations de l'utilisateur au client.
+            socket.emit("connection infos",
                 {"socket_id": request.sid, "username": user_data[1],
                 "users_connected": users_connected},
                 room=request.sid)
+            
+            # Envoyer les messages de l'utilisateur.
+            messages_query = '''SELECT sender_username, recipient_username, content_text, content_file, name_file,
+                timestamp FROM messages WHERE sender_username = ? OR recipient_username = ?'''
+            messages = execute_query(messages_query, parameters=(user_data[1], user_data[1]))
+            messages_dict = {}
+            user_chat = ""
+            for message in messages:
+                message_dict = {
+                    'fromUser': message[0],
+                    'toUser': message[1],
+                    'text': message[2],
+                    'file': message[3],
+                    'fileName': message[4]
+                }
+                if message[0] == message[1]:
+                    user_chat = message[0]
+                elif message[0] != user_data[1]:
+                    user_chat = message[0]
+                elif message[1] != user_data[1]:
+                    user_chat = message[1]
+                if user_chat in messages_dict:
+                    messages_dict[user_chat].append(message_dict)
+                else:
+                    messages_dict[user_chat] = [message_dict]
+            socket.emit("connection messages",
+                {"messages": messages_dict},
+                room=request.sid)
+
+            # Informer tous les utilisateurs de la connexion.
             socket.emit("new user", {"username": user_data[1]})
 
 @socket.on('client disconnect')
@@ -115,10 +150,13 @@ def handle_disconnect(data):
 def handle_message(data):
     for socket_id in clients_socket[data["toUser"]]["socket_id_list"]:
         socket.emit('private message', data, room=socket_id)
+    execute_query("""INSERT INTO messages (sender_username, recipient_username,
+                    content_text, content_file, name_file) VALUES (?, ?, ?, ?, ?)""",
+    parameters=(data["fromUser"], data["toUser"], data["text"], data["file"], data["fileName"]))
 
 @socket.on('new contact')
 def handle_message(data):
-    execute_query("INSERT INTO contacts (user_username, contact_username) VALUES (1, 2)",
+    execute_query("INSERT INTO contacts (user_username, contact_username) VALUES (?, ?)",
         parameters=(data["username"], data["nouveau_contact"]))
 
 

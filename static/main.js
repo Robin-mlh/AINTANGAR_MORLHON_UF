@@ -14,11 +14,13 @@ function updateDisplayedMessages() {
         } else {
             messageClass = "mine"
         }
-        fileLink = ''
+        fileElement = ''
         if (msg.file) {
-            fileLink = '<a href="#" class="file-link">' + msg.file.name + '</a>'
+            blob = new Blob([msg.file], {type: msg.file.type});
+            url = URL.createObjectURL(blob);
+            fileElement = '<a href="' + url + '" download="' + msg.fileName + '" class="file-link">' + msg.fileName + '</a>'
         }
-        $('.messages').append('<div class="message ' + messageClass + '"><p>' + msg.text + '</p>' + fileLink + '</div>')
+        $('.messages').append('<div class="message ' + messageClass + '"><p>' + msg.text + '</p>' + fileElement + '</div>')
     })
 }
 
@@ -52,25 +54,22 @@ $(document).ready(function () {
 
     function sendMessage() {
         let file = $('.fileInput')
+        let fileName
         if (file.length > 0) {
             file = file[0].files[0]
+            if (file) {
+                fileName = file.name
+            }
         } else {
             file = null
         }
         let text = $('.messageInput').val().trim()
-        if (file) {
-            let reader = new FileReader()
-            reader.onload = (e) => {
-                file = e.target.result
-            }
-            reader.readAsDataURL(file)
-        }
         if (text || file) {
             $('.messageInput').val('')
             $('.fileInput').val('')
             let message = {
-                fromId: socket_id, fromUser: username, toUser: selectedUsername,
-                text: text, file: file}
+                fromUser: username, toUser: selectedUsername,
+                text: text, file: file, fileName: fileName}
             socket.emit('private message', message)
             if (selectedUsername != username) {
                 if (!messages[selectedUsername]) {
@@ -90,7 +89,7 @@ $(document).ready(function () {
             } else {
                 isMe = ""
             }
-            let lastMessage = ""
+            let lastMessage = {text: ""}
             if (messages[user] && messages[user].length > 0) {
                 lastMessage = messages[user][messages[user].length - 1]
             }
@@ -104,13 +103,14 @@ $(document).ready(function () {
             messages[message.fromUser] = []
         }
         messages[message.fromUser].push(message)
+        updateUserList()
         if (message.fromUser == selectedUsername) {
             updateDisplayedMessages()
         }
     })
 
     socket.on('new user', function (data) {
-        if (data.username != username) {
+        if (data.username != username && !users_connected.includes(data.username)) {
             users_connected.push(data.username)
             updateUserList()
         }
@@ -124,12 +124,17 @@ $(document).ready(function () {
         updateUserList()
     })
 
-    socket.on('connection', function (data) {
+    socket.on('connection infos', function (data) {
         username = data.username
         socket_id = data.socket_id
         users_connected = data.users_connected
         selectedUsername = data.username
+    })
+
+    socket.on('connection messages', function (data) {
+        messages = data.messages
         updateUserList()
+        updateDisplayedMessages()
     })
 
     $('.messageForm').submit(function (event) {
