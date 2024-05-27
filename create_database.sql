@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS messages (
     sender_username TEXT NOT NULL,
     recipient_username TEXT NOT NULL,
     content_text TEXT NOT NULL,
-    content_file TEXT NOT NULL,
-    name_file TEXT NOT NULL,
+    content_file TEXT,
+    name_file TEXT,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (sender_username) REFERENCES users (username),
     FOREIGN KEY (recipient_username) REFERENCES users (username)

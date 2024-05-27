@@ -105,10 +105,13 @@ def handle_connect(auth):
             clients_socket[user_data[1]]["socket_id_list"].append(request.sid)
 
             # Envoi des informations de l'utilisateur au client.
-            socket.emit("connection infos",
-                {"socket_id": request.sid, "username": user_data[1],
-                "users_connected": users_connected},
-                room=request.sid)
+            socket.emit("connection infos", {"socket_id": request.sid, "username": user_data[1]}, room=request.sid)
+
+            # Envoi des contacts de l'utilisateur au client.
+            contacts_query = '''SELECT contact_username FROM contacts WHERE user_username = ?'''
+            contacts = execute_query(contacts_query, parameters=(user_data[1],))
+            print(contacts)
+            socket.emit("connection contacts", {"contacts": contacts}, room=request.sid)
             
             # Envoyer les messages de l'utilisateur.
             messages_query = '''SELECT sender_username, recipient_username, content_text, content_file, name_file,
@@ -144,20 +147,42 @@ def handle_connect(auth):
 @socket.on('client disconnect')
 def handle_disconnect(data):
     socket.emit("del user", {"username": data["username"]})
-    users_connected.remove(data["username"])
+    if data["username"] in users_connected:
+        users_connected.remove(data["username"])
 
 @socket.on('private message')
 def handle_message(data):
-    for socket_id in clients_socket[data["toUser"]]["socket_id_list"]:
-        socket.emit('private message', data, room=socket_id)
+    print(data)
+    if data["toUser"] in clients_socket:
+        for socket_id in clients_socket[data["toUser"]]["socket_id_list"]:
+            socket.emit('private message', data, room=socket_id)
     execute_query("""INSERT INTO messages (sender_username, recipient_username,
                     content_text, content_file, name_file) VALUES (?, ?, ?, ?, ?)""",
     parameters=(data["fromUser"], data["toUser"], data["text"], data["file"], data["fileName"]))
 
 @socket.on('new contact')
 def handle_message(data):
-    execute_query("INSERT INTO contacts (user_username, contact_username) VALUES (?, ?)",
-        parameters=(data["username"], data["nouveau_contact"]))
+    # Obtention de l'username du client avec son token.
+    username_query = 'SELECT username FROM users WHERE token = ?'
+    username = execute_query(username_query, parameters=(data["token"],), fetchone=True)
+
+    # Vérifier que l'username à ajouter en contact existe.
+    username_exist_query = 'SELECT username FROM users WHERE username = ?'
+    username_exist = execute_query(username_exist_query, parameters=(data["new_contact"],), fetchone=True)
+
+    # Vérifier que le contact n'est pas deja ajouté par l'utilisateur.
+    contact_exist_query = 'SELECT 1 FROM contacts WHERE user_username = ? AND contact_username = ?'
+    contact_exist = execute_query(contact_exist_query, parameters=(username[0], data["new_contact"],), fetchone=True)
+
+    if username_exist is not None and contact_exist is None:
+        # Ajouter une entrée dans la base de donnée avec le username du client associé au contact.
+        execute_query("INSERT INTO contacts (user_username, contact_username) VALUES (?, ?)",
+            parameters=(username[0], data["new_contact"]))
+        execute_query("INSERT INTO contacts (user_username, contact_username) VALUES (?, ?)",
+            parameters=(data["new_contact"], username[0]))
+
+    test_query = 'SELECT * FROM contacts'
+    print(execute_query(test_query))
 
 
 if __name__ == '__main__':

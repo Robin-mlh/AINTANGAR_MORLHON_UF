@@ -17,8 +17,8 @@
       <ul class="nav-list">
         <li><a href="login">Connexion</a></li>
         <li><a href="signup">Inscription</a></li>
-        <li><a href="login">Déconnexion</a></li>
-        <li><a href="login">Ajouter un Contact</a></li>
+        <li><a href="login" class="logout">Déconnexion</a></li>
+        <li><a href="#" class="addContact">Ajouter un Contact</a></li>
       </ul>
     </nav>
   </header>
@@ -29,12 +29,14 @@
         <div class="InputContainer">
           <input type="text" placeholder="Search.." id="input" class="input">
         </div>
-        <div class="chat-list"></div>
+        <div class="chat-list">
+        </div>
       </div>
     </section>
 
     <section class="chat-window">
-      <div class="messages"></div>
+      <div class="messages">
+      </div>
       <div class="message-input-container">
         <form class="messageForm">
           <input type="text" name="Message à envoyer" class="messageInput">

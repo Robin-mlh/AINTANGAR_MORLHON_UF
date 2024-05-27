@@ -1,6 +1,6 @@
 const ADRESS = "http://127.0.0.1:5000"
 let selectedUsername
-let users_connected = []
+let contacts = []
 let messages = {}
 let socket_id
 let username
@@ -8,20 +8,23 @@ let token
 
 function updateDisplayedMessages() {
     $('.messages').empty()
-    messages[selectedUsername].forEach(function(msg) {
-        if (msg.toUser == username) {
-            messageClass = "theirs"
-        } else {
-            messageClass = "mine"
-        }
-        fileElement = ''
-        if (msg.file) {
-            blob = new Blob([msg.file], {type: msg.file.type});
-            url = URL.createObjectURL(blob);
-            fileElement = '<a href="' + url + '" download="' + msg.fileName + '" class="file-link">' + msg.fileName + '</a>'
-        }
-        $('.messages').append('<div class="message ' + messageClass + '"><p>' + msg.text + '</p>' + fileElement + '</div>')
-    })
+    $('.messages').append('<div class="anchor"></div>')
+    if (messages[selectedUsername] != undefined) {
+        messages[selectedUsername].forEach(function(msg) {
+            if (msg.toUser == username) {
+                messageClass = "theirs"
+            } else {
+                messageClass = "mine"
+            }
+            fileElement = ''
+            if (msg.file) {
+                blob = new Blob([msg.file], {type: msg.file.type});
+                url = URL.createObjectURL(blob);
+                fileElement = '<a href="' + url + '" download="' + msg.fileName + '" class="file-link">' + msg.fileName + '</a>'
+            }
+            $('.messages').prepend('<div class="bubble ' + messageClass + '"><p>' + msg.text + '</p>' + fileElement + '</div>')
+        })
+    }
 }
 
 $(document).ready(function () {
@@ -53,16 +56,14 @@ $(document).ready(function () {
     }
 
     function sendMessage() {
-        let file = $('.fileInput')
-        let fileName
-        if (file.length > 0) {
-            file = file[0].files[0]
-            if (file) {
-                fileName = file.name
-            }
-        } else {
+        file = $('.fileInput')[0].files[0]
+        if (file == undefined) {
             file = null
+            fileName = null
+        } else {
+            fileName = file.name
         }
+        console.log(file, fileName)
         let text = $('.messageInput').val().trim()
         if (text || file) {
             $('.messageInput').val('')
@@ -83,7 +84,7 @@ $(document).ready(function () {
 
     function updateUserList() {
         $('.chat-list').empty()
-        users_connected.forEach(function(user) {
+        contacts.forEach(function(user) {
             if (user == username) {
                 isMe = " (me) "
             } else {
@@ -109,26 +110,30 @@ $(document).ready(function () {
         }
     })
 
-    socket.on('new user', function (data) {
-        if (data.username != username && !users_connected.includes(data.username)) {
-            users_connected.push(data.username)
-            updateUserList()
-        }
-    })
+    // socket.on('new user', function (data) {
+    //     if (data.username != username && !contacts.includes(data.username)) {
+    //         contacts.push(data.username)
+    //         updateUserList()
+    //     }
+    // })
 
-    socket.on('del user', function (data) {
-        let index_a_del = users_connected.indexOf(data.username)
-        if (index_a_del !== -1) {
-            users_connected.splice(index_a_del, 1)
-        }
-        updateUserList()
-    })
+    // socket.on('del user', function (data) {
+    //     let index_a_del = users_connected.indexOf(data.username)
+    //     if (index_a_del !== -1) {
+    //         users_connected.splice(index_a_del, 1)
+    //     }
+    //     updateUserList()
+    // })
 
     socket.on('connection infos', function (data) {
         username = data.username
         socket_id = data.socket_id
-        users_connected = data.users_connected
         selectedUsername = data.username
+    })
+
+    socket.on('connection contacts', function (data) {
+        contacts = data.contacts
+        contacts.push(username)
     })
 
     socket.on('connection messages', function (data) {
@@ -148,6 +153,17 @@ $(document).ready(function () {
             sendMessage()
         }
     })
+
+    $(document).on('click', '.addContact', function() {
+        if (token) {
+            newContact = prompt('Utilisateur à ajouter :')
+            if (newContact) {
+                socket.emit('new contact', {token: token, new_contact: newContact})
+            }
+        } else {
+            alert("Veuillez vous connecter.")
+        }
+    })
 })
 
 $(document).on('click', '.call_user', function() {
@@ -159,17 +175,7 @@ $(document).on('click', '.call_user', function() {
 })
 
 $(document).on('click', '.logout', function() {
+    token = ''
     localStorage.removeItem('token')
     location.reload()
-})
-
-$(document).on('click', '.addContact', function() {
-    if (token) {
-        newContact = prompt('Utilisateur à ajouter :')
-        if (newContact) {
-            socket.emit('new contact', {username: username, nouveau_contact: newContact})
-        }
-    } else {
-        alert("Veuillez vous connecter.")
-    }
 })
