@@ -87,6 +87,7 @@ main {
 .chat-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 10px;
   border-bottom: 1px solid #34495e;
 }
@@ -221,3 +222,20 @@ main {
     place-self: end;
     background-color: #d9d6d6;
   }
+
+  .close-button {
+    background-color: transparent;
+    border: none;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left:10px;
+    font-weight: 900;
+  }
+
+  .close-button:hover {
+    color: #ccc;
+  }
+
+  .selected-contact {
+    background-color: #a1a1a198;
+}

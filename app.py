@@ -110,52 +110,55 @@ def handle_connect(auth):
             # Envoi des contacts de l'utilisateur au client.
             contacts_query = '''SELECT contact_username FROM contacts WHERE user_username = ?'''
             contacts = execute_query(contacts_query, parameters=(user_data[1],))
-            print(contacts)
+            contacts = [item[0] for item in contacts]
             socket.emit("connection contacts", {"contacts": contacts}, room=request.sid)
             
             # Envoyer les messages de l'utilisateur.
-            messages_query = '''SELECT sender_username, recipient_username, content_text, content_file, name_file,
+            messages_query = '''SELECT id, sender_username, recipient_username, content_text, content_file, name_file,
                 timestamp FROM messages WHERE sender_username = ? OR recipient_username = ?'''
             messages = execute_query(messages_query, parameters=(user_data[1], user_data[1]))
             messages_dict = {}
             user_chat = ""
             for message in messages:
                 message_dict = {
-                    'fromUser': message[0],
-                    'toUser': message[1],
-                    'text': message[2],
-                    'file': message[3],
-                    'fileName': message[4]
+                    'id': message[0],
+                    'fromUser': message[1],
+                    'toUser': message[2],
+                    'text': message[3],
+                    'file': message[4],
+                    'fileName': message[5]
                 }
-                if message[0] == message[1]:
-                    user_chat = message[0]
-                elif message[0] != user_data[1]:
-                    user_chat = message[0]
+                if message[1] == message[2]:
+                    user_chat = message[1]
                 elif message[1] != user_data[1]:
                     user_chat = message[1]
+                elif message[2] != user_data[1]:
+                    user_chat = message[2]
                 if user_chat in messages_dict:
                     messages_dict[user_chat].append(message_dict)
                 else:
                     messages_dict[user_chat] = [message_dict]
-            socket.emit("connection messages",
-                {"messages": messages_dict},
-                room=request.sid)
+            socket.emit("connection messages", {"messages": messages_dict}, room=request.sid)
 
             # Informer tous les utilisateurs de la connexion.
             socket.emit("new user", {"username": user_data[1]})
 
 @socket.on('client disconnect')
 def handle_disconnect(data):
-    socket.emit("del user", {"username": data["username"]})
+    """ Mettre à jour la liste des utilisateurs connectés lorsqu'un client se déconnecte. """
+
     if data["username"] in users_connected:
         users_connected.remove(data["username"])
 
 @socket.on('private message')
 def handle_message(data):
-    print(data)
+    """ Lorsqu'un message destiné à un autre utilisateur est reçu. """
+
+    # Envoyer le message à tous les clients connectés de l'utilisateur.
     if data["toUser"] in clients_socket:
         for socket_id in clients_socket[data["toUser"]]["socket_id_list"]:
             socket.emit('private message', data, room=socket_id)
+    # Ajouter le message dans la base de données.
     execute_query("""INSERT INTO messages (sender_username, recipient_username,
                     content_text, content_file, name_file) VALUES (?, ?, ?, ?, ?)""",
     parameters=(data["fromUser"], data["toUser"], data["text"], data["file"], data["fileName"]))
@@ -181,8 +184,48 @@ def handle_message(data):
         execute_query("INSERT INTO contacts (user_username, contact_username) VALUES (?, ?)",
             parameters=(data["new_contact"], username[0]))
 
-    test_query = 'SELECT * FROM contacts'
-    print(execute_query(test_query))
+    # Envoyer le nouveau contact aux deux utilisateurs.
+    try:
+        for sid in clients_socket[data["new_contact"]]["socket_id_list"]:
+            socket.emit("new contact", {"username": username[0]}, room=sid)
+    except KeyError:  # L'utilisateur n'est pas connecté.
+        pass
+    for sid in clients_socket[username[0]]["socket_id_list"]:
+        socket.emit("new contact", {"username": data["new_contact"]}, room=sid)
+    
+@socket.on('del contact')
+def handle_message(data):
+    # Vérifier que l'username à supprimer existe dans les contacts de l'utilisateur.
+    contact_exist_query = 'SELECT 1 FROM contacts WHERE user_username = ? AND contact_username = ?'
+    contact_exist = execute_query(contact_exist_query, parameters=(data["username"], data["contact"]), fetchone=True)
+
+    if contact_exist is not None:
+        # Supprimer l'entrée dans la base de donnée avec le username du client associé au contact.
+        execute_query("DELETE FROM contacts WHERE user_username = ? AND contact_username = ?",
+                      parameters=(data["username"], data["contact"]))
+        execute_query("DELETE FROM contacts WHERE user_username = ? AND contact_username = ?",
+                      parameters=(data["contact"], data["username"]))
+
+        # Envoyer une notification à l'autre utilisateurs concerné.
+        try:
+            for sid in clients_socket[data["contact"]]["socket_id_list"]:
+                socket.emit("del contact", {"username": data["username"]}, room=sid)
+        except KeyError:  # L'utilisateur n'est pas connecté.
+            pass
+
+@socket.on('del message')
+def handle_message(data):
+    # Récupérer l'utilisateur à partir du token
+    user_query = 'SELECT username FROM users WHERE token = ?'
+    user_data = execute_query(user_query, parameters=(data["token"],), fetchone=True)
+    if user_data:
+        username = user_data[0]
+        # Vérifier que l'utilisateur est bien l'expéditeur du message
+        message_query = 'SELECT sender_username FROM messages WHERE id = ?'
+        message_data = execute_query(message_query, parameters=(data["id"],), fetchone=True)
+        if message_data and message_data[0] == username:
+            # Supprimer le message si la vérification réussit
+            execute_query("DELETE FROM messages WHERE id = ?", parameters=(data["id"],))
 
 
 if __name__ == '__main__':
